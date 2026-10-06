@@ -73,6 +73,7 @@ Since last release
 
 **Fixed:**
 
+* Fixed the MacOS CI by building in the locked Pixi environment with the conda-forge linker instead of pinning old compilers (#1984)
 * Removed retired macos-13 runner for CI tests and added macos-15-intel and macos-latest (#1938)
 * Removed unnecessary records being added to the Resource database by packaging process (#1761)
 * Removed GTest source code from code coverage reports (#1759)
