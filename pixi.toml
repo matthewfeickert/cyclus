@@ -39,3 +39,24 @@ websockets = ">=17.2,<18"
 [target.osx.dependencies]
 # Clang does not ship an OpenMP runtime, which is needed for --parallel builds
 llvm-openmp = ">=23.1.2,<24"
+# libxmlpp-4.0 requires libxml2 <2.14, which restricts the solve to LLVM 21.1.0.
+# The clang 21.1.0 package predates conda-forge's clang depending on its own
+# linker, so without these clang falls back to the Xcode linker, which rejects
+# conda-forge's LTO plugin ("-lto_library library filename must be
+# 'libLTO.dylib'"). These can be removed once the environment solves to
+# clang >=21.1.8, which depends on both itself.
+# c.f. https://github.com/cyclus/cyclus/issues/1977
+cctools = ">=1024.3,<1025"
+ld64 = ">=955.13,<956"
+
+[target.osx.activation.env]
+# The conda-forge clang packages do not provide cc, c++, or cpp, so without
+# these CMake and cycpp.py would use the Xcode toolchain instead.
+CC = "clang"
+CXX = "clang++"
+CPP = "clang-cpp"
+# The shared libraries are linked with -flat_namespace, which makes the linker
+# load the dependencies of the libraries being linked against. Some of those
+# are referenced through @rpath (e.g. libquadmath from libgfortran) and are
+# only found if the environment's library directory is searched.
+LDFLAGS = "-L$CONDA_PREFIX/lib"
