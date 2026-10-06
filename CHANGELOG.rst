@@ -73,6 +73,7 @@ Since last release
 
 **Fixed:**
 
+* Removed the macos-14 runner and the Xcode selection step from the MacOS CI, which now uses the default Xcode of the runner for the MacOS SDK (#1984)
 * Fixed the MacOS CI by building in the locked Pixi environment with the conda-forge linker instead of pinning old compilers (#1984)
 * Removed retired macos-13 runner for CI tests and added macos-15-intel and macos-latest (#1938)
 * Removed unnecessary records being added to the Resource database by packaging process (#1761)
