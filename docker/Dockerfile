@@ -1,146 +1,63 @@
-ARG pkg_mgr=apt
-ARG ubuntu_version=24.04
+# Builds Cyclus in an environment of the Pixi workspace and makes an image in
+# which that environment is activated by default. This follows the recipe of
+# https://github.com/CHTC/templates-GPUs/tree/master/containers/pixi with the
+# addition that Cyclus is built and its install directory is kept in the image.
+#
+# The image has to be built from the top level directory of the repository:
+#
+#   docker build -f docker/Dockerfile .
 
-FROM ubuntu:${ubuntu_version} AS common-base
+ARG ENVIRONMENT="default"
 
-ENV TZ=America/Chicago
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+FROM ghcr.io/prefix-dev/pixi:noble AS build
 
-FROM common-base AS apt-deps
+# Redeclaring ARGS in a stage without a value inherits the global default
+ARG ENVIRONMENT
+# Extra arguments for install.py
+ARG BUILD_FLAGS="--allow-milps --parallel"
 
-RUN apt update -y && apt install -y \
-        g++ \
-        gcc \
-        cmake \
-        make \
-        libxml2-dev \
-        libxml++2.6-dev \
-        liblapack-dev \
-        pkg-config \
-        coinor-libcbc-dev \
-        coinor-libclp-dev \
-        coinor-libcoinutils-dev \
-        coinor-libosi-dev \
-        libboost-all-dev \
-        libhdf5-dev \
-        libsqlite3-dev \
-        libpcre2-dev \
-        python3-setuptools \
-        python3-pytest \
-        python3-tables \
-        python3-pandas \
-        python3-jinja2 \
-        python3-pip \
-        cython3 \
-        libwebsockets-dev \
-        doxygen
+WORKDIR /app
+COPY . .
+RUN pixi install --locked --environment $ENVIRONMENT
+RUN pixi run --locked --environment $ENVIRONMENT build $BUILD_FLAGS
+# Activate ENVIRONMENT at container runtime by using the Pixi environment
+# activation script as the container ENTRYPOINT.
+# Set fallback environmental variables to guard against batch system defaults
+RUN echo "#!/usr/bin/env bash" > /app/entrypoint.sh && \
+    echo 'export USER="${USER:-$(id -u)}"' >> /app/entrypoint.sh && \
+    echo 'export LOGNAME="${LOGNAME:-$USER}"' >> /app/entrypoint.sh && \
+    echo '[ -w "${HOME:-/}" ] || export HOME="$(mktemp -d)"' >> /app/entrypoint.sh && \
+    pixi shell-hook --locked --environment $ENVIRONMENT --shell bash >> /app/entrypoint.sh && \
+    echo 'exec "$@"' >> /app/entrypoint.sh && \
+    chmod 0755 /app/entrypoint.sh
 
-RUN apt install -y python3-pprintpp; exit 0
-RUN apt clean -y all
+# Runs the tests, which are only in the 'test' environment, so this stage has
+# to be built with '--build-arg ENVIRONMENT=test'. It is not part of the final
+# image and is only built when asked for with '--target test'.
+FROM build AS test
 
-RUN mkdir -p `python3 -m site --user-site`
+ARG ENVIRONMENT
 
-FROM common-base AS conda-deps
+RUN pixi run --locked --environment $ENVIRONMENT test
 
-RUN apt update -y && apt install -y \
-        wget \
-        bzip2 \
-        ca-certificates \
-    && apt clean -y all
+FROM ghcr.io/prefix-dev/pixi:noble AS final
 
-RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
-    wget --quiet "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh" -O ~/miniforge.sh && \
-    /bin/bash ~/miniforge.sh -b -p /opt/conda && \
-    rm ~/miniforge.sh
+ARG ENVIRONMENT
 
-ENV PATH=/opt/conda/bin:$PATH
-RUN mamba create -n cyclus
-SHELL ["mamba", "run", "-n", "cyclus", "/bin/bash", "-c"]
-RUN mamba install -y python --no-pin && \
-    mamba update -y --all && \
-    mamba install -y \
-               compilers \
-               cmake \
-               make \
-               git \
-               glib \
-               libxml2-devel \
-               libxmlpp-4.0 \
-               liblapack \
-               pkg-config \
-               coincbc \
-               boost-cpp \
-               hdf5 \
-               sqlite \
-               pcre \
-               setuptools \
-               pytest \
-               pytables \
-               pandas \
-               jinja2 \
-               cython \
-               websockets \
-               pprintpp \
-               pip \
-               doxygen \
-               && \
-    mamba clean -y --all
-RUN mkdir -p $(python3 -m site --user-site)
+WORKDIR /app
+COPY --from=build /app/.pixi/envs/$ENVIRONMENT /app/.pixi/envs/$ENVIRONMENT
+COPY --from=build /app/pixi.toml /app/pixi.toml
+COPY --from=build /app/pixi.lock /app/pixi.lock
+# The ignore files are needed for 'pixi run' to work in the container
+COPY --from=build /app/.pixi/.gitignore /app/.pixi/.gitignore
+COPY --from=build /app/.pixi/.condapackageignore /app/.pixi/.condapackageignore
+# Cyclus is installed into the install directory of the workspace and not into
+# the Pixi environment (c.f. CYCLUS_INSTALL_PREFIX in pixi.toml)
+COPY --from=build /app/install /app/install
+COPY --from=build /app/entrypoint.sh /app/entrypoint.sh
 
-FROM apt-deps AS apt-coverage-deps
-RUN apt install -y lcov curl
-ENV GCOV=/usr/bin/gcov
-
-FROM conda-deps AS conda-coverage-deps
-RUN mamba install -y lcov curl
-ENV GCOV=/opt/conda/bin/x86_64-conda-linux-gnu-gcov
-
-FROM ${pkg_mgr}-coverage-deps AS cyclus-coverage
-ARG make_cores=2
-ARG build_flags="--parallel"
-COPY . /cyclus
-WORKDIR /cyclus
-
-RUN python3 install.py -j ${make_cores} --allow-milps --code-coverage ${build_flags}
-ENV PATH=/root/.local/bin:$PATH
-ENV LCOV_ARGS="--gcov-tool=${GCOV} --no-external"
-RUN lcov -c -d /cyclus -o initial_coverage.info --initial ${LCOV_ARGS} && \
-    cyclus_unit_tests && \
-    cd tests && python3 -m pytest && cd .. && \
-    lcov -c -d /cyclus -o test_coverage.info ${LCOV_ARGS} && \
-    lcov --add-tracefile initial_coverage.info --add-tracefile test_coverage.info -o temp_coverage.info && \
-    lcov --remove temp_coverage.info -o total_coverage.info '/cyclus/build/_deps/**' && \
-    mkdir -p html && genhtml total_coverage.info --output-directory html
-
-FROM scratch AS coverage-report
-COPY --from=cyclus-coverage /cyclus /
-
-FROM ${pkg_mgr}-deps AS cyclus
-ARG make_cores=2
-ARG build_flags="--parallel"
-COPY . /cyclus
-WORKDIR /cyclus
-
-# Uncomment the following line to run cmake in verbose mode.
-# This is sometimes useful for debugging.
-#ENV VERBOSE=1
-
-# You may add the option "--cmake-debug" to the following command
-# for further CMake debugging.
-RUN python3 install.py -j ${make_cores} --allow-milps ${build_flags}
-ENV PATH=/root/.local/bin:$PATH
-
-FROM cyclus AS deb-generation
-WORKDIR /cyclus/build
-RUN make package
-
-FROM scratch AS deb-package
-COPY --from=deb-generation /cyclus/build/cyclus*.deb /
-
-FROM cyclus AS cyclus-test
-
-RUN cyclus_unit_tests
-
-FROM cyclus-test AS cyclus-pytest
-
-RUN cd tests && python3 -m pytest
+# The ENTRYPOINT is not used for the RUN instructions of an image that is
+# built FROM this one, so also make it the shell of those, for the environment
+# to be activated while projects that depend on Cyclus are built.
+SHELL [ "/app/entrypoint.sh", "/bin/bash", "-c" ]
+ENTRYPOINT [ "/app/entrypoint.sh" ]
