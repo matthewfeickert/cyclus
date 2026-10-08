@@ -76,6 +76,7 @@ Since last release
 
 **Fixed:**
 
+* Fixed building with Boost 1.89 and newer, which no longer has a compiled Boost.System library, and updated the Pixi workspace to Boost 1.92
 * Fixed a segmentation fault when a Cyclus Python module fails to import, which is now reported as an error with the Python traceback
 * Fixed the Python ``Sink`` agent raising a ``TypeError`` for every material it accepted, which caused a segmentation fault with Python 3.14
 * Fixed a typo in the ``AttrToaster`` test agent that caused a segmentation fault in the Python tests with Python 3.14
