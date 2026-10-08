@@ -99,3 +99,6 @@ tests/html/*
 build-*/
 install/
 install-*/
+
+# Coverage report
+/html/
