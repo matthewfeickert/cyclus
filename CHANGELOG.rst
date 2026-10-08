@@ -43,6 +43,7 @@ Since last release
 * Users can specify for random seed to be created for random number generation (#1950)
 
 **Changed:**
+* Changed the code coverage CI to build and test in a ``coverage`` environment of the Pixi workspace in place of a Docker image
 * Changed the Linux CI to build and test in the Pixi workspace, in the same workflow as the MacOS CI, in place of building Docker images
 * Removed the ``python<3.13`` and ``cython<3.1.0`` pins from the conda Docker builds
 * Updated the Pixi workspace to Python 3.14 and Cython 3.3

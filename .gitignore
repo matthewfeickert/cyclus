@@ -98,3 +98,6 @@ tests/html/*
 # Cyclus build directories and install prefix used by the Pixi tasks
 build-*/
 install/
+
+# Coverage report
+/html/

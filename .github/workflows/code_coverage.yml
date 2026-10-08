@@ -9,8 +9,7 @@ on:
       - '.github/workflows/publish_latest.yml'
       - '.github/workflows/publish_release.yml'
       - '.github/workflows/changelog_test.yml'
-      - '.github/workflows/rocky_build_test.yml'
-      - '.github/workflows/macos_build_test.yml'
+      - 'docker/**'
       - 'doc/**'
       - 'CHANGELOG.rst'
   push:
@@ -26,46 +25,34 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        ubuntu_versions : [
-          22.04,
-        ]
-        pkg_mgr : [
-          apt,
-        ]
 
     name: Build, Test, Report Coverage
     steps:
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Cyclus
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build, Test, and Report Coverage
-        uses: docker/build-push-action@v5
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.11.0
         with:
-          cache-from: type=registry,ref=ghcr.io/cyclus/cyclus_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cyclus-coverage:ci-layer-cache
-          cache-to: type=registry,ref=ghcr.io/cyclus/cyclus_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cyclus-coverage:ci-layer-cache,mode=max,ignore-error=true
-          file: docker/Dockerfile
-          target: coverage-report
-          outputs: type=local,dest=.
-          build-args: |
-            pkg_mgr=${{ matrix.pkg_mgr }}
-            ubuntu_version=${{ matrix.ubuntu_versions }}
+          locked: true
+          environments: coverage
+          cache: true
+          cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+
+      - name: Build Cyclus
+        run: pixi run -e coverage build -j "$(nproc)" --allow-milps --parallel --code-coverage
+
+      - name: Capture initial coverage
+        run: pixi run -e coverage coverage-initial
+
+      - name: Run unit tests
+        run: pixi run -e coverage test-unit
+
+      - name: Run Python tests
+        run: pixi run -e coverage test-python
+
+      - name: Report coverage
+        run: pixi run -e coverage coverage-report
 
       - name: Coveralls
         uses: coverallsapp/github-action@v2
@@ -76,6 +63,5 @@ jobs:
       - name: Upload Coverage HTML Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          name: cyclus-coverage-report-${{ matrix.ubuntu_versions }}-${{ matrix.pkg_mgr }}
+          name: cyclus-coverage-report
           path: ${{ github.workspace }}/html
-        

@@ -121,9 +121,53 @@ description = "Run all tests (requires 'pixi run build')"
 depends-on = ["uninstall", "build", "test"]
 description = "Build and test Cyclus from a clean install"
 
+[feature.coverage]
+# Code coverage is only measured on Linux.
+platforms = ["linux-64"]
+
+[feature.coverage.dependencies]
+# lcov requires perl 5.32, which, as the environments share a solve group, is
+# then the perl of every environment on linux-64.
+lcov = ">=2.5,<3"
+
+[feature.coverage.activation.env]
+# lcov 2 treats these as errors by default:
+# * inconsistent: the end line of a function does not match, for the bodies of
+#   the GoogleTest TEST macros.
+# * range: a line number is past the end of the file, for code that cycpp.py
+#   generates and attributes to the header it was generated from.
+LCOV_ARGS = "--ignore-errors inconsistent,range"
+
+# The tasks measure the coverage of the tests, for a build made with
+#   pixi run -e coverage build --code-coverage
+# and are run in the order: coverage-initial, test, coverage-report.
+[feature.coverage.tasks.coverage-initial]
+# --no-external only keeps the files under the build directory and the
+# --base-directory, which is the top level of the repository.
+cmd = """
+lcov --capture --initial --directory "$CYCLUS_BUILD_DIR" --no-external --base-directory . \
+--output-file initial_coverage.info $LCOV_ARGS
+"""
+description = "Record the lines that can be covered, before the tests are run"
+
+[feature.coverage.tasks.coverage-report]
+# The Pixi environments and the GoogleTest sources that the build downloads are
+# under the top level of the repository, so they have to be removed by name.
+cmd = """
+lcov --capture --directory "$CYCLUS_BUILD_DIR" --no-external --base-directory . \
+--output-file test_coverage.info $LCOV_ARGS && \
+lcov --add-tracefile initial_coverage.info --add-tracefile test_coverage.info \
+--output-file temp_coverage.info $LCOV_ARGS && \
+lcov --remove temp_coverage.info "$PIXI_PROJECT_ROOT/.pixi/*" "$CYCLUS_BUILD_DIR/_deps/*" \
+--output-file total_coverage.info $LCOV_ARGS && \
+genhtml total_coverage.info --output-directory html $LCOV_ARGS
+"""
+description = "Write the coverage of the tests to total_coverage.info and html/"
+
 [environments]
-# Both environments are in the same solve group so that they use the same
+# The environments are in the same solve group so that they use the same
 # versions of the dependencies they share. The default environment has to be
 # listed for this, as it is not part of any solve group otherwise.
 default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+coverage = { features = ["test", "coverage"], solve-group = "default" }
