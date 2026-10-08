@@ -1,0 +1,6 @@
+# Files that Pixi and the build create in a checkout. They are specific to the
+# machine they were made on, so they are not to be copied into an image.
+.pixi/
+build-*/
+build/
+install/

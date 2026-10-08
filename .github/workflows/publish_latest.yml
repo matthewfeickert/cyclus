@@ -6,30 +6,19 @@ on:
   pull_request:
     paths:
       - '.github/workflows/publish_latest.yml'
+      - 'docker/**'
   push:
     branches:
       - main
 
 jobs:
-  build-ubuntu-img:
+  build-test-publish-img:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
-    strategy:
-      matrix:
-        ubuntu_versions : [
-          20.04,
-          22.04,
-          24.04,
-        ]
-        pkg_mgr : [
-          apt,
-          conda,
-        ]
-
-    name: Publish Ubuntu Latest
+    name: Publish Latest
     steps:
       - name: Tag as ci-image-cache
         run: |
@@ -48,110 +37,33 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout Cyclus
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build, Test, and Push Cyclus
-        id: build-cyclus
+      # The image has the test environment of the Pixi workspace, as it is for
+      # building and testing the projects that depend on Cyclus.
+      - name: Build and Test Cyclus
         uses: docker/build-push-action@v5
         with:
-          cache-from: type=registry,ref=ghcr.io/cyclus/cyclus_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cyclus:ci-layer-cache
-          cache-to: type=registry,ref=ghcr.io/cyclus/cyclus_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cyclus:ci-layer-cache,mode=max
+          cache-from: type=registry,ref=ghcr.io/cyclus/cyclus:ci-layer-cache
           file: docker/Dockerfile
-          push: true
-          tags: ghcr.io/cyclus/cyclus_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cyclus:${{ env.tag }}
+          target: test
           build-args: |
-            pkg_mgr=${{ matrix.pkg_mgr }}
-            ubuntu_version=${{ matrix.ubuntu_versions }}
+            ENVIRONMENT=test
 
-      - name: Checkout Cycamore
-        uses: actions/checkout@v4
-        with:
-          repository: cyclus/cycamore
-          path: ${{ github.workspace }}/cycamore
-    
-      - name: Build, Test, and Push Cycamore
-        id: build-cycamore
-        continue-on-error: true
+      # This reuses the layers of the previous step from the builder's cache.
+      # The image and the layer cache are only pushed from the cyclus
+      # organization and not for pull requests, as the token of a pull request
+      # from a fork cannot write packages. Otherwise the image is only built.
+      - name: Build and Push Cyclus
         uses: docker/build-push-action@v5
         with:
-          context: ${{ github.workspace }}/cycamore
-          file: ${{ github.workspace }}/cycamore/docker/Dockerfile
-          cache-from: type=registry,ref=ghcr.io/cyclus/cycamore_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cycamore:ci-layer-cache
-          tags: ghcr.io/cyclus/cycamore_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cycamore:${{ env.tag }}
-          push: true
+          cache-from: type=registry,ref=ghcr.io/cyclus/cyclus:ci-layer-cache
+          cache-to: ${{ github.repository_owner == 'cyclus' && github.event_name != 'pull_request' && 'type=registry,ref=ghcr.io/cyclus/cyclus:ci-layer-cache,mode=max' || '' }}
+          file: docker/Dockerfile
+          push: ${{ github.repository_owner == 'cyclus' && github.event_name != 'pull_request' }}
+          tags: ghcr.io/cyclus/cyclus:${{ env.tag }}
           build-args: |
-            pkg_mgr=${{ matrix.pkg_mgr }}
-            ubuntu_version=${{ matrix.ubuntu_versions }}
-            cyclus_tag=${{ env.tag }}@${{ steps.build-cyclus.outputs.digest }}
-
-      - name: Checkout Cymetric
-        uses: actions/checkout@v4
-        with:
-          repository: cyclus/cymetric
-          path: ${{ github.workspace }}/cymetric
-
-      - name: Build, Test, and Push Cymetric
-        continue-on-error: true
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ github.workspace }}/cymetric
-          file: ${{ github.workspace }}/cymetric/docker/Dockerfile
-          cache-from: type=registry,ref=ghcr.io/cyclus/cymetric_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cymetric:ci-layer-cache
-          tags: ghcr.io/cyclus/cymetric_${{ matrix.ubuntu_versions }}_${{ matrix.pkg_mgr }}/cymetric:${{ env.tag }}
-          push: true
-          build-args: |
-            pkg_mgr=${{ matrix.pkg_mgr }}
-            ubuntu_version=${{ matrix.ubuntu_versions }}
-            cycamore_tag=${{ env.tag }}@${{ steps.build-cycamore.outputs.digest }}
-
-  build-rocky-img:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      matrix:
-        rocky_versions : [
-          8,
-          9,
-        ]
-
-    name: Publish Rocky Latest
-    steps:
-      - name: Tag as ci-image-cache
-        run: |
-          echo "tag=ci-image-cache" >> "$GITHUB_ENV"
-
-      - name: Tag as latest
-        if: ${{ github.repository_owner == 'cyclus' && github.ref == 'refs/heads/main' }}
-        run: |
-          echo "tag=latest" >> "$GITHUB_ENV"
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout Cyclus
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build, Test, and Push Cyclus
-        id: build-cyclus
-        uses: docker/build-push-action@v5
-        with:
-          cache-from: type=registry,ref=ghcr.io/cyclus/cyclus_rocky_${{ matrix.rocky_versions }}/cyclus:ci-layer-cache
-          cache-to: type=registry,ref=ghcr.io/cyclus/cyclus_rocky_${{ matrix.rocky_versions }}/cyclus:ci-layer-cache,mode=max
-          file: docker/Rocky.dockerfile
-          push: true
-          tags: ghcr.io/cyclus/cyclus_rocky_${{ matrix.rocky_versions }}/cyclus:${{ env.tag }}
-          build-args: |
-            rocky_version=${{ matrix.rocky_versions }}
+            ENVIRONMENT=test

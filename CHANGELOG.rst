@@ -45,6 +45,7 @@ Since last release
 
 **Changed:**
 * Raised the minimum versions of Python to 3.10.0, SQLite to 3.36.0, Jinja2 to 2.10.3, NumPy to 1.21.4, and pandas to 1.3.4, and lowered that of Coin-Clp to 1.17.3, which are the versions tested in the ``minimum`` environment of the Pixi workspace
+* Rewrote ``docker/Dockerfile`` to build Cyclus in an environment of the Pixi workspace, and changed the publish workflows to publish the one image ``ghcr.io/cyclus/cyclus``
 * Changed the code coverage CI to build and test in a ``coverage`` environment of the Pixi workspace in place of a Docker image
 * Changed the Linux CI to build and test in the Pixi workspace, in the same workflow as the MacOS CI, in place of building Docker images
 * Removed the ``python<3.13`` and ``cython<3.1.0`` pins from the conda Docker builds, which now install ``libpython`` in place of the Python bindings of Boost (#1985)
@@ -74,6 +75,7 @@ Since last release
 
 **Removed:**
 
+* Removed ``docker/Rocky.dockerfile``, the ``cyclus_<ubuntu>_<pkg_mgr>`` and Rocky Linux images, the ``.deb`` package of a release, and the Cycamore and Cymetric images from the publish workflows
 * Removed the apt, conda, and Rocky Linux Docker builds and the Cycamore and Cymetric builds from the pull request CI
 * Removed the ResourceBuff class and replaced its instances with ResBuf (#1755)
 * Removed reference to deprecated ``ProgTranslator::Context`` class (#1811)
