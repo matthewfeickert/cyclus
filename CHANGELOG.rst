@@ -43,6 +43,7 @@ Since last release
 * Users can specify for random seed to be created for random number generation (#1950)
 
 **Changed:**
+* Removed the ``python<3.13`` and ``cython<3.1.0`` pins from the conda Docker builds
 * Updated the Pixi workspace to Python 3.14 and Cython 3.3
 * Clarify behavior of `Material::Absorb()` with respect to decay (#1966)
 * Modified cycpp.py to fix a few whitespace-related bugs, and allow cyclus vars to be initialized (#1954)
