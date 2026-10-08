@@ -35,9 +35,14 @@ foreach(file ${CYCLUS_CYTHON_FILES})
     set(targ "py_${name}_")
     cython_add_module(${targ} ${file})
     target_link_libraries(${targ} PRIVATE dl ${LIBS} cyclus)
+    # The modules are built with the RPATH of the install, as the copies of
+    # them that end up installed are the ones that pip takes from the build
+    # directory, which with the RPATH of the build could only find libcyclus
+    # for as long as the build directory exists.
     set_target_properties(${targ} PROPERTIES LINKER_LANGUAGE CXX
                                              OUTPUT_NAME ${name}
-                                             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+                                             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+                                             BUILD_WITH_INSTALL_RPATH TRUE)
     if (CYTHON_VERSION_MAJOR GREATER_EQUAL 3)
         target_compile_definitions(${targ} PRIVATE NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
     endif()

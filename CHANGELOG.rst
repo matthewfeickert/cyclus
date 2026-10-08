@@ -78,6 +78,7 @@ Since last release
 
 **Fixed:**
 
+* Fixed the installed Python extension modules only finding ``libcyclus`` for as long as the build directory exists
 * Fixed building with Boost 1.89 and newer, which no longer has a compiled Boost.System library (#1985)
 * Fixed a segmentation fault when a Cyclus Python module fails to import, which is now reported as an error with the Python traceback (#1985)
 * Fixed the inventory of the Python ``Sink`` agent, which raised a ``TypeError`` for every material it accepted, causing a segmentation fault with Python 3.13 and newer, and now keeps the materials and products that it accepts (#1985)
