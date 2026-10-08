@@ -43,6 +43,7 @@ Since last release
 * Users can specify for random seed to be created for random number generation (#1950)
 
 **Changed:**
+* Updated the Pixi workspace to Python 3.14 and Cython 3.3
 * Clarify behavior of `Material::Absorb()` with respect to decay (#1966)
 * Modified cycpp.py to fix a few whitespace-related bugs, and allow cyclus vars to be initialized (#1954)
 * Changed the epsilon (eps) in Material::Decay to 1e-4 allowing 1 day decay of tritium (#1946)

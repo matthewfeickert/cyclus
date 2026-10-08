@@ -28,10 +28,8 @@ libxml2-devel = ">=2.15.4,<3"
 pcre = ">=8.45,<9"
 sqlite = ">=3.53.4,<4"
 # Python dependencies
-python = "3.12.*"
-# Cython 3.1 removed support for parts of the Python 2 era API that the
-# Cyclus Cython sources still use.
-cython = ">=3.0.0,<3.1.0"
+python = ">=3.12.0,<3.15"
+cython = ">=3.1.0,<4"
 jinja2 = ">=3.1.6,<4"
 pandas = ">=3.0.6,<4"
 pip = ">=26.2.1,<27"
