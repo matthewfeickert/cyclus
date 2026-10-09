@@ -56,7 +56,8 @@ RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
 ENV PATH=/opt/conda/bin:$PATH
 RUN mamba create -n cyclus
 SHELL ["mamba", "run", "-n", "cyclus", "/bin/bash", "-c"]
-RUN mamba install -y python --no-pin && \
+# Python is held to the versions that the Pixi workspace allows (pixi.toml)
+RUN mamba install -y "python<3.15" --no-pin && \
     mamba update -y --all && \
     mamba install -y \
                compilers \
