@@ -7,6 +7,7 @@ Since last release
 
 **Added:**
 * Added a Linux only ``coverage`` environment to the Pixi workspace, with a ``coverage`` task that runs all tests and reports their code coverage with lcov (#1996)
+* Added a weekly CI workflow that builds and tests Cyclus in a conda environment, with a ``conda`` installed with Pixi and not in a container (#1996)
 * Added concurrency groups to the build, MacOS build, and code coverage workflows so that a new push cancels superseded in-progress runs (#1984)
 * Added a Pixi workspace (``pixi.toml``, ``pixi.lock``) for development on Linux and MacOS (#1984)
 * Added forced decay mode for use inside Material::Absorb() to correctly handle lazy mode with small timesteps and half-lives (#1974)
@@ -48,7 +49,7 @@ Since last release
 
 **Changed:**
 * Replaced the Docker builds across Ubuntu versions, package managers, and Rocky Linux versions in the build CI workflow with builds and tests in the Pixi workspace on Linux and MacOS, with and without ``--parallel`` and ``--allow-milps`` (#1996)
-* Moved the conda CI build, and the Cycamore and Cymetric builds, into a separate workflow that builds in a conda environment installed with a ``conda`` from Pixi and not in a container, and changed the PR comment workflow to run after it (#1996)
+* Replaced the conda CI build, which also builds Cycamore and Cymetric, with a build in the Pixi workspace after ``pixi update``, so that it tests against the latest versions of the dependencies that ``pixi.toml`` allows, and changed the PR comment workflow to run after it (#1996)
 * Measured the code coverage in one of the Linux Pixi builds of the build CI workflow, and updated ``coverallsapp/github-action`` to v2.3.8 (#1996)
 * Raised the minimum versions of Python to 3.10.0, SQLite to 3.36.0, Jinja2 to 2.10.3, NumPy to 1.21.4, and pandas to 1.3.4, and lowered that of Coin-Clp to 1.17.3, which are the versions tested in the ``minimum`` environment of the Pixi workspace
 * Removed the ``python<3.13`` and ``cython<3.1.0`` pins from the conda Docker builds, which now install ``libpython`` in place of the Python bindings of Boost (#1985)
