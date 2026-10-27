@@ -8,7 +8,6 @@ on:
       - '.github/workflows/publish_latest.yml'
       - '.github/workflows/publish_release.yml'
       - '.github/workflows/changelog_test.yml'
-      - '.github/workflows/code_coverage.yml'
       - '.github/workflows/rocky_build_test.yml'
       - '.github/workflows/minimum_build_test.yml'
       - '.github/workflows/conda_build_test.yml'
@@ -19,7 +18,6 @@ on:
       - '.github/workflows/publish_latest.yml'
       - '.github/workflows/publish_release.yml'
       - '.github/workflows/changelog_test.yml'
-      - '.github/workflows/code_coverage.yml'
       - '.github/workflows/rocky_build_test.yml'
       - '.github/workflows/minimum_build_test.yml'
       - '.github/workflows/conda_build_test.yml'
@@ -52,8 +50,18 @@ jobs:
           "",
           "--allow-milps",
         ]
+        # Measure the code coverage in one of the builds, instead of in an
+        # extra build.
+        include:
+          - os: ubuntu-latest
+            parallel_flag: "--parallel"
+            coin_flag: "--allow-milps"
+            coverage: true
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      PIXI_ENV: ${{ matrix.coverage && 'coverage' || 'test' }}
 
     steps:
       - name: Checkout Cyclus
@@ -63,15 +71,43 @@ jobs:
         uses: prefix-dev/setup-pixi@v0.11.0
         with:
           locked: true
-          environments: test
+          environments: ${{ env.PIXI_ENV }}
           cache: true
           cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
 
       - name: Build Cyclus
-        run: pixi run -e test build -j "$(getconf _NPROCESSORS_ONLN)" ${{ matrix.parallel_flag }} ${{ matrix.coin_flag }}
+        run: >-
+          pixi run -e "${PIXI_ENV}" build -j "$(getconf _NPROCESSORS_ONLN)"
+          ${{ matrix.parallel_flag }} ${{ matrix.coin_flag }}
+          ${{ matrix.coverage && '--code-coverage' || '' }}
 
       - name: Run unit tests
+        if: ${{ !matrix.coverage }}
         run: pixi run -e test test-unit
 
       - name: Run Python tests
+        if: ${{ !matrix.coverage }}
         run: pixi run -e test test-python
+
+      - name: Run all tests with code coverage
+        if: ${{ matrix.coverage }}
+        run: |
+          pixi run -e coverage coverage
+          # The report is in a directory that is set in pixi.toml
+          echo "CYCLUS_COVERAGE_DIR=$(pixi run -e coverage printenv CYCLUS_COVERAGE_DIR)" >> "${GITHUB_ENV}"
+
+      # The same events as the former Code Coverage workflow, so that only the
+      # main branch and pull requests are reported to Coveralls.
+      - name: Coveralls
+        if: ${{ matrix.coverage && (github.event_name == 'pull_request' || github.ref_name == 'main') }}
+        uses: coverallsapp/github-action@v2.3.8
+        with:
+          file: ${{ env.CYCLUS_COVERAGE_DIR }}/total_coverage.info
+          format: lcov
+
+      - name: Upload Coverage HTML Artifact
+        if: ${{ matrix.coverage }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: cyclus-coverage-report
+          path: ${{ env.CYCLUS_COVERAGE_DIR }}/html

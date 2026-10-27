@@ -202,10 +202,54 @@ cmd = "cyclus_unit_tests && pytest"
 cwd = "tests"
 description = "Run all tests (requires 'pixi run build-minimum')"
 
+[feature.coverage]
+# lcov uses gcov, which is only available with GCC, and so the conda-forge
+# compilers of Linux.
+platforms = ["linux-64"]
+
+[feature.coverage.dependencies]
+lcov = ">=2.5,<3"
+
+[feature.coverage.activation.env]
+# The same as in [activation.env], except for the install directory, so that
+# the coverage build is not installed over that of the other environments.
+CYCLUS_INSTALL_PREFIX = "$PIXI_PROJECT_ROOT/install-coverage"
+CYCLUS_BUILD_DIR = "$PIXI_PROJECT_ROOT/build-$PIXI_ENVIRONMENT_NAME"
+PATH = "$CYCLUS_INSTALL_PREFIX/bin:$PATH"
+PYTHONUSERBASE = "$CYCLUS_INSTALL_PREFIX"
+CYCLUS_COVERAGE_DIR = "$CYCLUS_BUILD_DIR/coverage"
+
+[feature.coverage.tasks.coverage]
+# Runs all tests and writes the coverage report to
+# $CYCLUS_COVERAGE_DIR/total_coverage.info and $CYCLUS_COVERAGE_DIR/html.
+# The baseline capture before the tests includes the files that the tests do
+# not run with zero coverage. The sources are outside the build directory, so
+# the base directory (-b) is the top level of the repository for
+# --no-external to keep them. GoogleTest, downloaded into _deps of the build
+# directory, is removed from the report.
+cmd = """
+mkdir -p "$CYCLUS_COVERAGE_DIR" && \
+lcov --capture --initial -d "$CYCLUS_BUILD_DIR" -b "$PIXI_PROJECT_ROOT" --no-external \
+-o "$CYCLUS_COVERAGE_DIR/initial_coverage.info" && \
+cyclus_unit_tests && \
+(cd tests && pytest) && \
+lcov --capture -d "$CYCLUS_BUILD_DIR" -b "$PIXI_PROJECT_ROOT" --no-external \
+-o "$CYCLUS_COVERAGE_DIR/test_coverage.info" && \
+lcov --add-tracefile "$CYCLUS_COVERAGE_DIR/initial_coverage.info" \
+--add-tracefile "$CYCLUS_COVERAGE_DIR/test_coverage.info" \
+-o "$CYCLUS_COVERAGE_DIR/combined_coverage.info" && \
+lcov --remove "$CYCLUS_COVERAGE_DIR/combined_coverage.info" "$CYCLUS_BUILD_DIR/_deps/*" \
+-o "$CYCLUS_COVERAGE_DIR/total_coverage.info" && \
+genhtml "$CYCLUS_COVERAGE_DIR/total_coverage.info" --output-directory "$CYCLUS_COVERAGE_DIR/html"
+"""
+description = "Run all tests and report their code coverage (requires 'pixi run -e coverage build --code-coverage')"
+
 [environments]
-# Both environments are in the same solve group so that they use the same
-# versions of the dependencies they share. The default environment has to be
-# listed for this, as it is not part of any solve group otherwise.
+# The default, test, and coverage environments are in the same solve group so
+# that they use the same versions of the dependencies they share. The default
+# environment has to be listed for this, as it is not part of any solve group
+# otherwise.
 default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+coverage = { features = ["test", "coverage"], solve-group = "default" }
 minimum = { features = ["minimum"], no-default-feature = true }
