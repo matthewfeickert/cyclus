@@ -222,25 +222,37 @@ CYCLUS_COVERAGE_DIR = "$CYCLUS_BUILD_DIR/coverage"
 [feature.coverage.tasks.coverage]
 # Runs all tests and writes the coverage report to
 # $CYCLUS_COVERAGE_DIR/total_coverage.info and $CYCLUS_COVERAGE_DIR/html.
-# The baseline capture before the tests includes the files that the tests do
-# not run with zero coverage. The sources are outside the build directory, so
-# the base directory (-b) is the top level of the repository for
-# --no-external to keep them. GoogleTest, downloaded into _deps of the build
-# directory, is removed from the report.
+# The counters are zeroed first, so that a rerun does not add to the counts of
+# the last run. The baseline capture before the tests includes the files that
+# the tests do not run with zero coverage. The sources are outside the build
+# directory, so the base directory (-b) is the top level of the repository for
+# --no-external to keep them. That makes the Pixi environments in .pixi
+# internal too, and so they are excluded, as is GoogleTest, which CMake
+# downloads into _deps of the build directory.
+# lcov 2 checks the coverage data for consistency, unlike the lcov 1 of Ubuntu
+# that the former Docker coverage build used. Two of its checks fail for
+# Cyclus, and so are made warnings:
+# * inconsistent: the functions that the TEST macros of GoogleTest generate
+#   have end lines before their start lines in the gcov data of GCC.
+# * range: cycpp writes the agent headers into the build directory with a
+#   #line directive to the source header, so the code that it adds has line
+#   numbers beyond the end of the source header.
 cmd = """
 mkdir -p "$CYCLUS_COVERAGE_DIR" && \
+lcov --zerocounters -d "$CYCLUS_BUILD_DIR" && \
 lcov --capture --initial -d "$CYCLUS_BUILD_DIR" -b "$PIXI_PROJECT_ROOT" --no-external \
--o "$CYCLUS_COVERAGE_DIR/initial_coverage.info" && \
+--exclude "$PIXI_PROJECT_ROOT/.pixi/*" --exclude "$CYCLUS_BUILD_DIR/_deps/*" \
+--ignore-errors inconsistent,range -o "$CYCLUS_COVERAGE_DIR/initial_coverage.info" && \
 cyclus_unit_tests && \
 (cd tests && pytest) && \
 lcov --capture -d "$CYCLUS_BUILD_DIR" -b "$PIXI_PROJECT_ROOT" --no-external \
--o "$CYCLUS_COVERAGE_DIR/test_coverage.info" && \
+--exclude "$PIXI_PROJECT_ROOT/.pixi/*" --exclude "$CYCLUS_BUILD_DIR/_deps/*" \
+--ignore-errors inconsistent,range -o "$CYCLUS_COVERAGE_DIR/test_coverage.info" && \
 lcov --add-tracefile "$CYCLUS_COVERAGE_DIR/initial_coverage.info" \
 --add-tracefile "$CYCLUS_COVERAGE_DIR/test_coverage.info" \
--o "$CYCLUS_COVERAGE_DIR/combined_coverage.info" && \
-lcov --remove "$CYCLUS_COVERAGE_DIR/combined_coverage.info" "$CYCLUS_BUILD_DIR/_deps/*" \
--o "$CYCLUS_COVERAGE_DIR/total_coverage.info" && \
-genhtml "$CYCLUS_COVERAGE_DIR/total_coverage.info" --output-directory "$CYCLUS_COVERAGE_DIR/html"
+--ignore-errors inconsistent,range -o "$CYCLUS_COVERAGE_DIR/total_coverage.info" && \
+genhtml "$CYCLUS_COVERAGE_DIR/total_coverage.info" --ignore-errors inconsistent,range \
+--output-directory "$CYCLUS_COVERAGE_DIR/html"
 """
 description = "Run all tests and report their code coverage (requires 'pixi run -e coverage build --code-coverage')"
 
